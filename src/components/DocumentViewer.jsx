@@ -301,6 +301,12 @@ const [diagramError, setDiagramError] = useState("");
 
 
 const generateDiagram = async () => {
+
+  if (!hasExistingSummary) {
+    setDiagramError("You must generate summary first before generating diagram.");
+    setShowDiagramModal(true);
+    return;
+  }
   try {
     setLoadingDiagram(true);
     setDiagramError("");

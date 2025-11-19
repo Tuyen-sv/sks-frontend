@@ -74,9 +74,14 @@ const FoldersList = () => {
       setLoading(true);
       setError("");
 
+      // if (!isAuthenticated()) {
+      //   setError("Please login to view folders");
+      //   setLoading(false);
+      //   return;
+      // }
+
       if (!isAuthenticated()) {
-        setError("Please login to view folders");
-        setLoading(false);
+        navigate("/login"); 
         return;
       }
 

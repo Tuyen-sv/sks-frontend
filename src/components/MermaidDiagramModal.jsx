@@ -40,7 +40,8 @@ const MermaidDiagramModal = ({ show, onClose, diagramCode, error }) => {
       </Modal.Header>
 
       <Modal.Body style={{ maxHeight: "80vh", overflowY: "auto" }}>
-        {error && <Alert variant="danger">{error}</Alert>}
+      {error && <Alert variant="warning">{error}</Alert>}
+
 
         {!diagramCode && !error && (
           <div className="text-center py-5">
