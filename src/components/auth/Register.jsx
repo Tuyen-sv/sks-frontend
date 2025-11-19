@@ -47,7 +47,7 @@ const Register = () => {
       const res = await postRegister(payload);
 
       if (res.data) {
-        alert("Registration request sent. Please check your mail to verify.");
+        // alert("Registration request sent. Please check your mail to verify.");
         navigate("/login");
       } else {
         alert(res.data.message || "Signup failed");
@@ -74,7 +74,7 @@ const Register = () => {
             <Form.Label>Name</Form.Label>
             <Form.Control
               type="text"
-              name="name" // Đổi từ fullName thành name
+              name="name" 
               placeholder="Enter your name"
               value={formData.name}
               onChange={handleChange}

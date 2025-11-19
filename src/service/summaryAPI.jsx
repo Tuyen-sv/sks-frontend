@@ -1,15 +1,14 @@
 import axios from 'axios';
 import { getToken } from "../utils/auth";
 
-const API_BASE_URL = 'http://103.245.237.127';
+const API_BASE_URL = 'http://localhost:3000';
 
-// Tạo instance axios với cấu hình mặc định
 const createApiClient = () => {
   const token = getToken();
   
   return axios.create({
     baseURL: API_BASE_URL,
-    timeout: 30000, // 30 seconds
+    timeout: 30000, 
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -18,11 +17,7 @@ const createApiClient = () => {
 };
 
 export const summaryAPI = {
-  /**
-   * Tạo summary cho document
-   * @param {string} documentId - ID của document
-   * @returns {Promise} Promise chứa kết quả summary
-   */
+ 
   createSummary: async (documentId) => {
     try {
       const apiClient = createApiClient();
@@ -33,18 +28,13 @@ export const summaryAPI = {
     }
   },
 
-  /**
-   * Lấy summary đã tạo trước đó
-   * @param {string} documentId - ID của document
-   * @returns {Promise} Promise chứa summary
-   */
+
   getSummary: async (documentId) => {
     try {
       const apiClient = createApiClient();
       const response = await apiClient.get(`/summary/${documentId}`);
       return response.data;
     } catch (error) {
-      // Nếu không tìm thấy summary, trả về null thay vì throw error
       if (error.response?.status === 404) {
         return null;
       }
@@ -52,11 +42,7 @@ export const summaryAPI = {
     }
   },
 
-  /**
-   * Refresh/Regenerate summary
-   * @param {string} documentId - ID của document
-   * @returns {Promise} Promise chứa kết quả summary mới
-   */
+
   refreshSummary: async (documentId) => {
     try {
       const apiClient = createApiClient();
@@ -67,11 +53,7 @@ export const summaryAPI = {
     }
   },
 
-  /**
-   * Xóa summary
-   * @param {string} documentId - ID của document
-   * @returns {Promise} Promise chứa kết quả
-   */
+
   deleteSummary: async (documentId) => {
     try {
       const apiClient = createApiClient();
@@ -82,12 +64,7 @@ export const summaryAPI = {
     }
   },
 
-  /**
-   * Cập nhật summary
-   * @param {string} documentId - ID của document
-   * @param {string} summary - Nội dung summary mới
-   * @returns {Promise} Promise chứa kết quả
-   */
+
   updateSummary: async (documentId, summary) => {
     try {
       const apiClient = createApiClient();
@@ -96,7 +73,30 @@ export const summaryAPI = {
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Failed to update summary');
     }
+  },
+
+
+  createDiagram: async (documentId) => {
+    try {
+      const apiClient = createApiClient();
+      const response = await apiClient.post(`/summary/${documentId}/diagram`);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Failed to generate diagram');
+    }
+  },
+
+  
+  getDiagram: async (documentId) => {
+  try {
+    const apiClient = createApiClient();
+    const response = await apiClient.post(`/summary/${documentId}/diagram`);
+    return response.data; 
+  } catch (error) {
+    throw new Error(error.response?.data?.message || 'Failed to generate diagram');
   }
+}
+
 };
 
 export default summaryAPI;

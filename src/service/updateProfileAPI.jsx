@@ -6,9 +6,8 @@ const authHeader = () => ({
   Authorization: `Bearer ${localStorage.getItem("token")}`,
 });
 
-export const searchDocuments = (query) => {
-  return axios.get(`${API_URL}/documents/search`, {
+export const updateProfile = (data) => {
+  return axios.put(`${API_URL}/auth/profile`, data, {
     headers: authHeader(),
-    params: { q: query },
   });
 };

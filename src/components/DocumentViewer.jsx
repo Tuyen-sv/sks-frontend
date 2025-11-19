@@ -8,7 +8,12 @@ import { viewDocument, downloadDocument } from '../service/documentsAPI';
 import { isAuthenticated } from '../utils/auth';
 import * as mammoth from 'mammoth';
 import { summaryAPI } from '../service/summaryAPI';
+import { getRelatedDocuments } from '../service/relatedAPI'; 
 import '../assets/styles/DocumentViewer.css';
+import MermaidViewer from "../components/MermaidViewer";
+import MermaidDiagramModal from "../components/MermaidDiagramModal";
+
+
 
 const DocumentViewer = () => {
   const { documentId } = useParams();
@@ -21,7 +26,7 @@ const DocumentViewer = () => {
   const [downloading, setDownloading] = useState(false);
   const [fileInfo, setFileInfo] = useState(null);
   
-  // State for AI Summary
+  // AI Summary
   const [summary, setSummary] = useState('');
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -32,10 +37,26 @@ const DocumentViewer = () => {
   const [checkingSummary, setCheckingSummary] = useState(false);
   const [deletingSummary, setDeletingSummary] = useState(false);
 
+  // RELATED DOCUMENTS
+  const [relatedDocs, setRelatedDocs] = useState([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
+  const [relatedError, setRelatedError] = useState('');
+
+
+
+  // DIAGRAM STATES
+const [diagramCode, setDiagramCode] = useState("");
+const [showDiagramModal, setShowDiagramModal] = useState(false);
+const [loadingDiagram, setLoadingDiagram] = useState(false);
+const [diagramError, setDiagramError] = useState("");
+
+
+
   useEffect(() => {
     if (documentId) {
       loadDocument();
       checkExistingSummary();
+      loadRelatedDocuments(); // <<-- NEW
     }
   }, [documentId]);
 
@@ -69,6 +90,23 @@ const DocumentViewer = () => {
     }
   };
 
+  // LOAD RELATED DOCUMENTS (RIGHT SIDEBAR)
+  const loadRelatedDocuments = async () => {
+    if (!documentId) return;
+
+    try {
+      setRelatedLoading(true);
+      setRelatedError('');
+      const docs = await getRelatedDocuments(documentId); // service trả về array
+      setRelatedDocs((docs || []).slice(0, 6)); // chỉ lấy tối đa 6
+    } catch (err) {
+      console.error('Error loading related documents:', err);
+      setRelatedError('Failed to load related documents');
+    } finally {
+      setRelatedLoading(false);
+    }
+  };
+
   // Kiểm tra xem document đã có summary chưa
   const checkExistingSummary = async () => {
     if (!documentId) return;
@@ -79,7 +117,6 @@ const DocumentViewer = () => {
       
       if (existingSummary) {
         setHasExistingSummary(true);
-        // Nếu có summary sẵn, lưu vào state để sử dụng sau - ƯU TIÊN summaryText
         if (existingSummary.summaryText) {
           setSummary(existingSummary.summaryText);
         } else if (existingSummary.summary) {
@@ -98,7 +135,7 @@ const DocumentViewer = () => {
     }
   };
 
-  // Function to generate AI Summary using the separate API file
+  // Generate AI Summary
   const generateAISummary = async () => {
     if (!documentId) {
       setSummaryError('Document ID is required');
@@ -110,10 +147,8 @@ const DocumentViewer = () => {
       setSummaryError('');
       setSummary('');
 
-      // Sử dụng API từ file riêng
       const result = await summaryAPI.createSummary(documentId);
       
-      // Xử lý kết quả trả về - ƯU TIÊN summaryText
       if (result.summaryText) {
         setSummary(result.summaryText);
       } else if (result.summary) {
@@ -126,7 +161,6 @@ const DocumentViewer = () => {
         setSummary('Summary generated successfully. Please check the content.');
       }
       
-      // Đánh dấu là đã có summary
       setHasExistingSummary(true);
       setShowSummaryModal(true);
       
@@ -138,7 +172,7 @@ const DocumentViewer = () => {
     }
   };
 
-  // Function to view existing AI Summary
+  // View existing AI Summary
   const viewAISummary = async () => {
     if (!documentId) {
       setSummaryError('Document ID is required');
@@ -149,11 +183,9 @@ const DocumentViewer = () => {
       setGeneratingSummary(true);
       setSummaryError('');
       
-      // Lấy summary từ API
       const result = await summaryAPI.getSummary(documentId);
       
       if (result) {
-        // ƯU TIÊN LẤY summaryText TRƯỚC
         if (result.summaryText) {
           setSummary(result.summaryText);
         } else if (result.summary) {
@@ -179,12 +211,10 @@ const DocumentViewer = () => {
     }
   };
 
-  // Function to show confirm modal for regeneration
   const confirmRegenerate = () => {
     setShowConfirmModal(true);
   };
 
-  // Regenerate summary
   const regenerateAISummary = async () => {
     if (!documentId) return;
     
@@ -194,10 +224,8 @@ const DocumentViewer = () => {
       setSummary('');
       setShowConfirmModal(false);
 
-      // Sử dụng API refresh để tạo summary mới
       const result = await summaryAPI.refreshSummary(documentId);
       
-      // ƯU TIÊN summaryText
       if (result.summaryText) {
         setSummary(result.summaryText);
       } else if (result.summary) {
@@ -220,28 +248,23 @@ const DocumentViewer = () => {
     }
   };
 
-  // Function to show delete confirmation modal
   const confirmDeleteSummary = () => {
     setShowDeleteModal(true);
   };
 
-  // Delete summary
   const deleteSummary = async () => {
     if (!documentId) return;
     
     try {
       setDeletingSummary(true);
       
-      // Gọi API delete summary
       await summaryAPI.deleteSummary(documentId);
       
-      // Reset state
       setHasExistingSummary(false);
       setSummary('');
       setShowDeleteModal(false);
       setShowSummaryModal(false);
       
-      // Hiển thị thông báo thành công
       setSummaryError('Summary deleted successfully.');
       setTimeout(() => setSummaryError(''), 3000);
       
@@ -266,12 +289,62 @@ const DocumentViewer = () => {
       setDownloading(false);
     }
   };
+  // const handleBack = () => {
+  //   navigate(-1);
+  // };
 
   const handleBack = () => {
-    navigate(-1);
+    navigate("/");
   };
 
-  // Các hàm render document content (giữ nguyên)
+
+
+
+const generateDiagram = async () => {
+  try {
+    setLoadingDiagram(true);
+    setDiagramError("");
+    setDiagramCode("");
+
+    const result = await summaryAPI.getDiagram(documentId);
+
+    if (!result || !result.diagram) {
+      setDiagramError("Diagram data is invalid");
+      return;
+    }
+
+    // Join array → Mermaid-compatible string
+    const mermaidString = result.diagram.join("\n");
+    setDiagramCode(mermaidString);
+
+    setDiagramCode(mermaidString);
+    setShowDiagramModal(true);
+
+    // Mermaid init
+    setTimeout(() => {
+      try {
+        mermaid.initialize({ startOnLoad: false });
+        mermaid.init(undefined, ".mermaid-diagram-render");
+      } catch (err) {
+        console.error("Mermaid init error:", err);
+      }
+    }, 200);
+
+  } catch (err) {
+    console.error("Error loading diagram:", err);
+    setDiagramError(err.message || "Failed to generate diagram");
+  } finally {
+    setLoadingDiagram(false);
+  }
+};
+
+
+
+
+
+
+
+  // Render document content
   const renderDocumentContent = async (blob, fileExtension, filename) => {
     try {
       switch (fileExtension.toLowerCase()) {
@@ -391,27 +464,18 @@ const DocumentViewer = () => {
           <h3 style="margin-top: 20px; color: #495057;">Excel Spreadsheet</h3>
           <p style="color: #6c757d; font-size: 1.1rem;">This file cannot be previewed in the browser.</p>
           <p style="color: #6c757d; margin-bottom: 30px;">Please download the file to view its contents.</p>
-          <Button 
-            variant="success" 
-            size="lg"
-            onClick={() => handleDownload()}
-            disabled={downloading}
+          <button 
+            class="btn btn-success btn-lg"
+            onclick="window.dispatchEvent(new CustomEvent('download-excel'))"
           >
-            {downloading ? (
-              <>
-                <Spinner animation="border" size="sm" className="me-2" />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <i className="bi bi-download me-2"></i>
-                Download Excel File
-              </>
-            )}
-          </Button>
+            Download Excel File
+          </button>
         </div>
       </div>
     `);
+
+    // Lắng nghe event để gọi handleDownload trong React
+    window.addEventListener('download-excel', handleDownload);
   };
 
   const renderPowerpoint = async (blob, filename) => {
@@ -423,27 +487,11 @@ const DocumentViewer = () => {
           <h3 style="margin-top: 20px; color: #495057;">PowerPoint Presentation</h3>
           <p style="color: #6c757d; font-size: 1.1rem;">This file cannot be previewed in the browser.</p>
           <p style="color: #6c757d; margin-bottom: 30px;">Please download the file to view its contents.</p>
-          <Button 
-            variant="warning" 
-            size="lg"
-            onClick={() => handleDownload()}
-            disabled={downloading}
-          >
-            {downloading ? (
-              <>
-                <Spinner animation="border" size="sm" className="me-2" />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <i className="bi bi-download me-2"></i>
-                Download PowerPoint File
-              </>
-            )}
-          </Button>
         </div>
       </div>
     `);
+
+    window.addEventListener('download-ppt', handleDownload);
   };
 
   if (loading) {
@@ -524,7 +572,7 @@ const DocumentViewer = () => {
                 </div>
                 
                 <div className="d-flex gap-2">
-                  {/* AI Summary Button - Hiển thị nút khác nhau tùy theo trạng thái */}
+                  {/* AI Summary Button */}
                   {checkingSummary ? (
                     <Button variant="dark" disabled className="btn-prominent">
                       <Spinner animation="border" size="sm" className="me-2" />
@@ -590,6 +638,28 @@ const DocumentViewer = () => {
                     </Button>
                   )}
 
+
+
+                  <Button
+  variant="dark"
+  className="btn-prominent"
+  disabled={loadingDiagram}
+  onClick={generateDiagram}
+>
+  {loadingDiagram ? (
+    <>
+      <Spinner animation="border" size="sm" className="me-2" />
+      Generating...
+    </>
+  ) : (
+    <>
+      <i className="bi bi-diagram-3 me-2"></i>
+      Diagram
+    </>
+  )}
+</Button>
+
+
                   <Button
                     variant="dark"
                     onClick={handleDownload}
@@ -615,9 +685,10 @@ const DocumentViewer = () => {
         </Col>
       </Row>
 
-      {/* Document Content */}
+      {/* Document Content + RIGHT SIDEBAR */}
       <Row>
-        <Col>
+        {/* Main document */}
+        <Col lg={9} className="mb-4">
           <Card className="border-0 shadow-sm">
             <Card.Body className="p-0" style={{ minHeight: '70vh' }}>
               {content ? (
@@ -634,7 +705,147 @@ const DocumentViewer = () => {
             </Card.Body>
           </Card>
         </Col>
+
+        {/* Related documents sidebar */}
+        <Col lg={3}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Header className="bg-primary text-white">
+              Related Documents
+            </Card.Header>
+            <Card.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              {relatedLoading && (
+                <div className="text-center my-3">
+                  <Spinner animation="border" size="sm" />
+                  <p className="mt-2 text-muted">Loading related documents...</p>
+                </div>
+              )}
+
+              {relatedError && (
+                <Alert variant="danger" className="py-2">
+                  {relatedError}
+                </Alert>
+              )}
+
+              {!relatedLoading && !relatedError && relatedDocs.length === 0 && (
+                <p className="text-muted mb-0">No related documents found.</p>
+              )}
+
+              {relatedDocs.map((doc) => (
+                <Card
+                  key={doc.id}
+                  className="mb-3 border-0 shadow-sm"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+  const title = doc.title || doc.filename || "document";
+  const ext = title.includes('.') ? title.split('.').pop().toLowerCase() : "unknown";
+
+  localStorage.setItem("currentDocument", JSON.stringify({
+    ...doc,
+    id: doc.id,
+    filename: title,
+    fileExtension: ext
+  }));
+
+  navigate(`/documents/${doc.id}/view`);
+}}
+
+                >
+                  <Card.Body className="py-2">
+                    <div className="d-flex justify-content-between align-items-start">
+                      <div>
+                        <div className="fw-semibold text-primary" style={{ fontSize: '0.95rem' }}>
+                          {doc.title || doc.filename}
+                        </div>
+                        <small className="text-muted">
+                          {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : ''}
+                        </small>
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              ))}
+            </Card.Body>
+          </Card>
+        </Col>
       </Row>
+
+
+
+
+
+      {/* Diagram Modal */}
+{/* 
+      <Modal.Body style={{ maxHeight: "70vh", overflowY: "auto" }}>
+  {diagramError && (
+    <Alert variant="danger">{diagramError}</Alert>
+  )}
+
+  {!diagramError && diagramCode && (
+    <MermaidViewer code={diagramCode} />
+  )}
+
+  {!diagramCode && !diagramError && (
+    <div className="text-center py-4">
+      <Spinner animation="border" />
+      <p className="text-muted">Generating diagram...</p>
+    </div>
+  )}
+</Modal.Body> */}
+
+{/* <Modal show={showDiagramModal} onHide={() => setShowDiagramModal(false)} size="lg">
+  <Modal.Header closeButton>
+    <Modal.Title>
+      <i className="bi bi-diagram-3 me-2 text-primary"></i>
+      AI Generated Diagram
+    </Modal.Title>
+  </Modal.Header>
+  <Modal.Body style={{ maxHeight: "70vh", overflowY: "auto" }}>
+    {diagramError && (
+      <Alert variant="danger">{diagramError}</Alert>
+    )}
+
+    {!diagramError && diagramCode && (
+      <>
+        <pre className="mermaid mermaid-diagram-render">
+          {diagramCode}
+        </pre>
+      </>
+    )}
+
+    {!diagramCode && !diagramError && (
+      <div className="text-center py-4">
+        <Spinner animation="border" />
+        <p className="text-muted">Generating diagram...</p>
+      </div>
+    )}
+  </Modal.Body>
+
+  <Modal.Footer>
+    <Button variant="secondary" onClick={() => setShowDiagramModal(false)}>
+      Close
+    </Button>
+
+    {diagramCode && (
+      <Button
+        variant="dark"
+        onClick={() => {
+          const blob = new Blob([diagramCode], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "diagram.mmd";
+          link.click();
+          URL.revokeObjectURL(url);
+        }}
+      >
+        <i className="bi bi-download me-2"></i>
+        Download Diagram
+      </Button>
+    )}
+  </Modal.Footer>
+</Modal> */}
+
 
       {/* AI Summary Modal */}
       <Modal show={showSummaryModal} onHide={() => setShowSummaryModal(false)} size="lg">
@@ -802,6 +1013,14 @@ const DocumentViewer = () => {
           {summaryError}
         </Alert>
       )}
+
+
+      <MermaidDiagramModal
+      show={showDiagramModal}
+      onClose={() => setShowDiagramModal(false)}
+      diagramCode={diagramCode}
+      error={diagramError}
+    />
     </Container>
   );
 };

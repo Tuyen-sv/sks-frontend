@@ -5,6 +5,8 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import "./assets/styles/Register.css";
 import "./assets/styles/Login.css";
 import "./assets/styles/UploadDocumentsFolder.css";
+import "./assets/styles//Header.css";
+
 
 
 

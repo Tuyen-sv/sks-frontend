@@ -1,4 +1,5 @@
-import { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+
 import {
   Container,
   Card,
@@ -16,19 +17,19 @@ import {
 } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import {
-  getDocumentsByFolderId,
+  getFavorites,
+  toggleFavorite,
   deleteDocument,
   moveDocumentToFolder,
   downloadDocument,
   viewDocument,
-  toggleFavorite,
 } from "../../service/documentsAPI";
 import { getAllFolders } from "../../service/foldersAPI";
 import { isAuthenticated } from "../../utils/auth";
-import { DocumentsContext } from "../DocumentsContext";
 
-const DocumentsList = () => {
-  const [loading, setLoading] = useState(false);
+const MyFavorites = () => {
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,18 +63,6 @@ const DocumentsList = () => {
 
   const navigate = useNavigate();
 
-  // Lấy state từ context
-  const {
-    currentFolderId,
-    currentFolder,
-    documents,
-    setDocuments,
-    refreshTrigger,
-    refreshDocuments,
-  } = useContext(DocumentsContext);
-
-  const [togglingFavorite, setTogglingFavorite] = useState(null);
-
   // Fetch all folders for move functionality
   const fetchAllFolders = async () => {
     try {
@@ -86,58 +75,33 @@ const DocumentsList = () => {
     }
   };
 
-  // Hàm fetch documents
-  const fetchDocuments = async (
-    folderId = currentFolderId,
-    page = currentPage,
-    limit = itemsPerPage
-  ) => {
-    // Nếu không có folderId hợp lệ, không fetch
-    if (!folderId || folderId === "root") {
-      setDocuments([]);
-      setTotalDocuments(0);
-      setTotalPages(1);
-      return;
-    }
-
+  // Load favorites with pagination
+  const loadFavorites = async (page = currentPage, limit = itemsPerPage) => {
     try {
       setLoading(true);
       setError("");
+
       if (!isAuthenticated()) {
-        setError("Please login to view documents");
+        setError("Please login to view favorites");
         setLoading(false);
         return;
       }
 
-      const response = await getDocumentsByFolderId(folderId, page, limit);
-      console.log("Documents data:", response);
-
-      if (response && response.documents) {
-        setDocuments(response.documents);
-        setTotalDocuments(response.total || response.documents.length);
-        setTotalPages(
-          response.totalPages ||
-            Math.ceil((response.total || response.documents.length) / limit)
-        );
-      } else {
-        setDocuments([]);
-        setTotalDocuments(0);
-        setTotalPages(1);
-      }
+      const data = await getFavorites(page, limit);
+      setFavorites(data.documents || data);
+      setTotalDocuments(
+        data.total || data.documents?.length || data.length || 0
+      );
+      setTotalPages(
+        data.totalPages ||
+          Math.ceil(
+            (data.total || data.documents?.length || data.length || 0) / limit
+          )
+      );
     } catch (err) {
-      console.error("Error fetching documents:", err);
-      if (err.message.includes("401") || err.message.includes("Unauthorized")) {
-        setError("Session expired. Please login again.");
-      } else if (err.message.includes("404")) {
-        // No documents in this folder, this is normal
-        setDocuments([]);
-        setTotalDocuments(0);
-        setTotalPages(1);
-        setError("");
-      } else {
-        setError(err.message || "Failed to load documents");
-      }
-      setDocuments([]);
+      console.error("Error loading favorites:", err);
+      setError(err.message || "Failed to load favorites");
+      setFavorites([]);
       setTotalDocuments(0);
       setTotalPages(1);
     } finally {
@@ -145,45 +109,22 @@ const DocumentsList = () => {
     }
   };
 
-  // Effect để fetch documents khi folderId thay đổi
   useEffect(() => {
-    if (currentFolderId && currentFolderId !== "root") {
-      setCurrentPage(1);
-      fetchDocuments(currentFolderId, 1, itemsPerPage);
-    } else {
-      // Nếu là root hoặc không có folderId, clear documents
-      setDocuments([]);
-      setTotalDocuments(0);
-      setTotalPages(1);
-    }
-  }, [currentFolderId]);
+    loadFavorites(currentPage, itemsPerPage);
+  }, []);
 
-  // Effect để fetch documents khi refreshTrigger thay đổi
+  // Effect để load lại favorites khi page thay đổi
   useEffect(() => {
-    if (currentFolderId && currentFolderId !== "root") {
-      fetchDocuments(currentFolderId, currentPage, itemsPerPage);
-    }
-  }, [refreshTrigger]);
-
-  // Effect để fetch documents khi page thay đổi
-  // Effect để fetch documents khi page thay đổi - ĐÃ SỬA
-  useEffect(() => {
-    if (currentFolderId && currentFolderId !== "root") {
-      fetchDocuments(currentFolderId, currentPage, itemsPerPage);
+    if (currentPage > 1) {
+      loadFavorites(currentPage, itemsPerPage);
     }
   }, [currentPage]);
 
-  // Effect để fetch documents khi itemsPerPage thay đổi - ĐÃ SỬA
+  // Effect để load lại favorites khi itemsPerPage thay đổi
   useEffect(() => {
-    if (currentFolderId && currentFolderId !== "root") {
-      setCurrentPage(1);
-      fetchDocuments(currentFolderId, 1, itemsPerPage);
-    }
+    setCurrentPage(1);
+    loadFavorites(1, itemsPerPage);
   }, [itemsPerPage]);
-
-  const handleRefresh = () => {
-    fetchDocuments(currentFolderId, currentPage, itemsPerPage);
-  };
 
   // Delete document functions
   const handleDeleteClick = (document) => {
@@ -209,13 +150,13 @@ const DocumentsList = () => {
       setDocumentToDelete(null);
       alert(result.message || "Document deleted successfully!");
 
-      // Refresh documents list - handle pagination when deleting last item
-      if (documents.length === 1 && currentPage > 1) {
+      // Refresh favorites list - handle pagination when deleting last item
+      if (favorites.length === 1 && currentPage > 1) {
         const newPage = currentPage - 1;
         setCurrentPage(newPage);
-        await fetchDocuments(currentFolderId, newPage, itemsPerPage);
+        await loadFavorites(newPage, itemsPerPage);
       } else {
-        await fetchDocuments(currentFolderId, currentPage, itemsPerPage);
+        await loadFavorites(currentPage, itemsPerPage);
       }
     } catch (err) {
       console.error("Delete error:", err);
@@ -256,7 +197,7 @@ const DocumentsList = () => {
       setSelectedFolderId("");
       alert(result.message || "Document moved successfully!");
 
-      await fetchDocuments(currentFolderId, currentPage, itemsPerPage);
+      await loadFavorites(currentPage, itemsPerPage);
     } catch (err) {
       console.error("Move error:", err);
       setMoveError(err.message || "Failed to move document");
@@ -321,7 +262,7 @@ const DocumentsList = () => {
       setNewDocumentName("");
       alert(result.message || "Document renamed successfully!");
 
-      await fetchDocuments(currentFolderId, currentPage, itemsPerPage);
+      await loadFavorites(currentPage, itemsPerPage);
     } catch (err) {
       console.error("Rename error:", err);
       setRenameError(err.message || "Failed to rename document");
@@ -381,8 +322,8 @@ const DocumentsList = () => {
       await downloadDocument(documentId, filename);
       console.log("Download successful:", filename);
 
-      // Refresh documents list after download
-      await fetchDocuments(currentFolderId, currentPage, itemsPerPage);
+      // Refresh favorites list after download
+      await loadFavorites(currentPage, itemsPerPage);
     } catch (err) {
       console.error("Download error:", err);
       alert(`Download failed: ${err.message}`);
@@ -394,6 +335,19 @@ const DocumentsList = () => {
 
   const handleDocumentNameClick = (document) => {
     handleView(document);
+  };
+
+  // Toggle favorite function
+  const handleToggleFavorite = async (document) => {
+    try {
+      const result = await toggleFavorite(document.id);
+      alert(result.message);
+
+      // Refresh list sau khi toggle
+      await loadFavorites(currentPage, itemsPerPage);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   // Pagination handlers
@@ -471,40 +425,35 @@ const DocumentsList = () => {
   };
 
   // Render folder options for move modal
+  // const renderFolderOptions = (folders, level = 0) => {
+  //   let options = [];
+  //   folders.forEach((folder) => {
+  //     const indent = " ".repeat(level);
+  //     options.push(
+  //       <option key={folder.id} value={folder.id}>
+  //         {indent}📁 {folder.name}
+  //       </option>
+  //     );
+  //     if (folder.children && folder.children.length > 0) {
+  //       options = options.concat(renderFolderOptions(folder.children, level + 1));
+  //     }
+  //   });
+  //   return options;
+  // };
+
+  // Render folder tree options (giống upload modal)
   const renderFolderOptions = (folders, level = 0) => {
-    let options = [];
-    folders.forEach((folder) => {
-      const indent = " ".repeat(level);
-      options.push(
-        <option key={folder.id} value={folder.id}>
-          {indent}📁 {folder.name}
+    return folders.map((folder) => (
+      <React.Fragment key={folder.id}>
+        <option value={folder.id}>
+          {`${" ".repeat(level * 4)}📁 ${folder.name}`}
         </option>
-      );
-      if (folder.children && folder.children.length > 0) {
-        options = options.concat(
-          renderFolderOptions(folder.children, level + 1)
-        );
-      }
-    });
-    return options;
-  };
 
-  const handleToggleFavorite = async (documentId) => {
-    try {
-      await toggleFavorite(documentId);
-
-      // Update local UI state
-      setDocuments((prevDocs) =>
-        prevDocs.map((doc) =>
-          doc.id === documentId ? { ...doc, isFavorite: !doc.isFavorite } : doc
-        )
-      );
-
-      window.location.reload();
-    } catch (e) {
-      console.error("Favorite error:", e);
-      alert("Failed to update favorite status");
-    }
+        {folder.children &&
+          folder.children.length > 0 &&
+          renderFolderOptions(folder.children, level + 1)}
+      </React.Fragment>
+    ));
   };
 
   // Render pagination items
@@ -557,25 +506,6 @@ const DocumentsList = () => {
     return items;
   };
 
-  // Render folder indicator
-  const renderFolderIndicator = () => {
-    if (currentFolderId && currentFolderId !== "root") {
-      return (
-        <div className="d-flex align-items-center justify-content-between mb-3 p-3 bg-light border-bottom">
-          <div className="d-flex align-items-center">
-            <Badge bg="info" className="me-2">
-              <i className="bi bi-folder me-1"></i> Folder View
-            </Badge>
-            <small className="text-muted">
-              Showing documents from selected folder
-            </small>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
   if (loading) {
     return (
       <Container
@@ -584,7 +514,7 @@ const DocumentsList = () => {
       >
         <div className="text-center">
           <Spinner animation="border" role="status" variant="primary" />
-          <p className="mt-2 text-muted">Loading documents...</p>
+          <p className="mt-2 text-muted">Loading favorites...</p>
         </div>
       </Container>
     );
@@ -605,31 +535,27 @@ const DocumentsList = () => {
               >
                 <div>
                   <h4 className="mb-0">
-                    <i className="bi bi-folder me-2"></i>{" "}
-                    {currentFolderId && currentFolderId !== "root"
-                      ? "Folder Documents"
-                      : "My Documents"}
+                    <i className="bi bi-heart-fill text-danger me-2"></i> My
+                    Favorite Documents
                   </h4>
                   <small className="opacity-75">
-                    {totalDocuments} document(s) found • Page {currentPage} of{" "}
-                    {totalPages}{" "}
-                    {currentFolderId &&
-                      currentFolderId !== "root" &&
-                      " • Filtered by folder"}
+                    {totalDocuments} favorite document(s) found • Page{" "}
+                    {currentPage} of {totalPages}
                   </small>
                 </div>
                 <div className="d-flex gap-2">
                   <Button
-                    variant="outline-danger"
+                    variant="outline-primary"
                     size="sm"
-                    onClick={() => navigate("/favorites")}
+                    onClick={() => loadFavorites(currentPage, itemsPerPage)}
+                    disabled={loading}
+                    title="Refresh Favorites"
                   >
-                    <i className="bi bi-heart-fill me-1"></i> My Favorites
+                    <i className="bi bi-arrow-clockwise me-1"></i> Refresh
                   </Button>
                 </div>
               </Card.Header>
               <Card.Body className="p-0">
-                {renderFolderIndicator()}
                 {error && (
                   <Alert variant="danger" className="m-3 mb-0">
                     <div className="d-flex align-items-center">
@@ -646,33 +572,19 @@ const DocumentsList = () => {
                     </div>
                   </Alert>
                 )}
-                {!error && (!currentFolderId || currentFolderId === "root") && (
+                {!error && favorites.length === 0 && (
                   <div className="text-center py-5">
-                    <i className="bi bi-folder-x display-1 text-muted"></i>
-                    <h5 className="text-muted mt-3">Viewing Root Directory</h5>
+                    <i className="bi bi-heartbreak display-1 text-muted"></i>
+                    <h5 className="text-muted mt-3">
+                      No favorite documents found
+                    </h5>
                     <p className="text-muted">
-                      Select a folder from the folder list to view its
-                      documents.
+                      You haven't added any documents to your favorites yet.
                     </p>
                   </div>
                 )}
-                {!error &&
-                  currentFolderId &&
-                  currentFolderId !== "root" &&
-                  documents.length === 0 && (
-                    <div className="text-center py-5">
-                      <i className="bi bi-folder-x display-1 text-muted"></i>
-                      <h5 className="text-muted mt-3">No documents found</h5>
-                      <p className="text-muted">
-                        {currentFolder
-                          ? `No documents in "${currentFolder.name}"`
-                          : "No documents available."}
-                      </p>
-                    </div>
-                  )}
-                {!error && documents.length > 0 && (
+                {!error && favorites.length > 0 && (
                   <>
-                    {/* ĐÃ BỎ table-responsive để không có cuộn */}
                     <Table hover className="mb-0">
                       <thead className="bg-light">
                         <tr>
@@ -690,7 +602,7 @@ const DocumentsList = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {documents.map((doc, index) => {
+                        {favorites.map((doc, index) => {
                           if (!doc) return null;
                           const fileIcon = getFileIcon(doc.title);
                           const fileExtension = getFileExtension(doc);
@@ -740,7 +652,7 @@ const DocumentsList = () => {
                                 {formatDate(doc.createdAt)}
                               </td>
                               <td className="text-muted">
-                                {doc.formattedFileSize || "N/A"}
+                                {formatFileSize(doc.metadata?.size)}
                               </td>
                               <td>
                                 <div className="d-flex justify-content-center">
@@ -774,16 +686,12 @@ const DocumentsList = () => {
                                       </Dropdown.Item>
                                       <Dropdown.Item
                                         onClick={() =>
-                                          handleToggleFavorite(doc.id)
+                                          handleToggleFavorite(doc)
                                         }
                                       >
-                                        <i className="bi bi-heart me-2 text-danger"></i>
-                                        {doc.isFavorite
-                                          ? "Unfavorite"
-                                          : "Favorite"}
+                                        <i className="bi bi-heart-fill me-2 text-danger"></i>
+                                        Unfavorite
                                       </Dropdown.Item>
-
-                                      {/* ĐÃ BỎ nút View trong dropdown */}
                                       <Dropdown.Divider />
                                       <Dropdown.Item
                                         onClick={() => handleRenameClick(doc)}
@@ -854,10 +762,11 @@ const DocumentsList = () => {
                   </>
                 )}
               </Card.Body>
-              {!error && documents.length > 0 && totalPages === 1 && (
+              {!error && favorites.length > 0 && totalPages === 1 && (
                 <Card.Footer className="bg-light d-flex justify-content-between align-items-center">
                   <small className="text-muted">
-                    Showing {documents.length} of {totalDocuments} documents
+                    Showing {favorites.length} of {totalDocuments} favorite
+                    documents
                   </small>
                   <small className="text-muted">
                     Last updated: {new Date().toLocaleTimeString()}
@@ -939,11 +848,86 @@ const DocumentsList = () => {
       </Modal>
 
       {/* Move Document Modal */}
+
+      {/* Move Document Modal */}
       <Modal
         show={showMoveModal}
         onHide={() => setShowMoveModal(false)}
         centered
       >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="bi bi-folder me-2"></i>
+            Move Document to Folder
+          </Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          {moveError && (
+            <Alert variant="danger" className="mb-3">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              {moveError}
+            </Alert>
+          )}
+
+          {documentToMove && (
+            <Alert variant="info" className="mb-3">
+              <i className="bi bi-file-earmark me-2"></i>
+              <strong>Document:</strong> {documentToMove.title}
+            </Alert>
+          )}
+
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">
+              Select Destination Folder
+            </Form.Label>
+
+            <Form.Select
+              value={selectedFolderId}
+              onChange={(e) => setSelectedFolderId(e.target.value)}
+              disabled={moving}
+            >
+              <option value="">📂 Root (Top Level)</option>
+
+              {allFolders.length > 0 ? (
+                renderFolderOptions(allFolders)
+              ) : (
+                <option disabled>No folders found</option>
+              )}
+            </Form.Select>
+          </Form.Group>
+        </Modal.Body>
+
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowMoveModal(false)}
+            disabled={moving}
+          >
+            Cancel
+          </Button>
+
+          <Button
+            variant="primary"
+            onClick={handleMoveConfirm}
+            disabled={moving || !selectedFolderId}
+          >
+            {moving ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Moving...
+              </>
+            ) : (
+              <>
+                <i className="bi bi-folder-check me-2"></i>
+                Move
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* <Modal show={showMoveModal} onHide={() => setShowMoveModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
             <i className="bi bi-folder me-2"></i>
@@ -983,11 +967,7 @@ const DocumentsList = () => {
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => setShowMoveModal(false)}
-            disabled={moving}
-          >
+          <Button variant="secondary" onClick={() => setShowMoveModal(false)} disabled={moving}>
             Cancel
           </Button>
           <Button
@@ -1008,7 +988,7 @@ const DocumentsList = () => {
             )}
           </Button>
         </Modal.Footer>
-      </Modal>
+      </Modal> */}
 
       {/* Rename Document Modal */}
       <Modal
@@ -1097,4 +1077,4 @@ const DocumentsList = () => {
   );
 };
 
-export default DocumentsList;
+export default MyFavorites;

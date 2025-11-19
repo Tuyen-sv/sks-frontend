@@ -31,15 +31,18 @@ A modern React-based frontend application for the SKS (Student Knowledge System)
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd sks-vite
+   cd sks-frontend-master
    ```
 
 2. Install dependencies:
    ```bash
    npm install
-   npm install jwt-decode
-   npm install mammoth react-doc-viewer react-file-viewer --force /// thư viện chuyên dụng để đọc cái loại file
+   npm install jwt-decode ---force
+   npm install react-icons ---force
+   npm install mammoth react-doc-viewer react-file-viewer --force 
    npm install react-router-dom ---force
+   npm install mermaid ---force
+   npm install mermaid @mermaid-js/mermaid-mindmap ---force
    ```
 
 3. Start the development server:
@@ -55,26 +58,5 @@ A modern React-based frontend application for the SKS (Student Knowledge System)
 - `npm run build` - Build the project for production
 - `npm run preview` - Preview the production build locally
 - `npm run lint` - Run ESLint for code quality checks
-
-## Project Structure
-
-```
-src/
-├── components/
-│   ├── auth/
-│   │   ├── Login.jsx      # Login component
-│   │   └── Register.jsx   # Registration component
-├── service/
-│   └── authAPI.jsx        # API service for authentication
-├── utils/
-├── assets/
-│   ├── styles/
-│   │   ├── Login.css      # Login-specific styles
-│   │   └── Register.css   # Register-specific styles
-├── App.jsx                # Main app component
-├── Layout.jsx             # Routing layout
-├── main.jsx               # Application entry point
-└── index.css              # Global styles
-```
 
 

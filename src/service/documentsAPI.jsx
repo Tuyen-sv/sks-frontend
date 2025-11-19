@@ -3,7 +3,64 @@ import axios from "axios";
 import { getToken } from "../utils/auth";
 
 
-const API_URL = "http://103.245.237.127/documents";
+const API_URL = "http://localhost:3000/documents";
+
+
+const API_BASE = "http://localhost:3000/folders";
+
+export const getDocumentsByFolderId = async (folderId, page = 1, limit = 10) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    console.log(`Fetching documents for folder: ${folderId}, page: ${page}, limit: ${limit}`);
+
+    const response = await axios({
+      method: 'GET',
+      url: `${API_BASE}/${folderId}/documents`,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      params: {
+        page: page,
+        limit: limit
+      },
+      timeout: 15000
+    });
+
+    console.log("Documents API Response:", response);
+    
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching documents:", error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        const status = error.response.status;
+        if (status === 401) {
+          throw new Error("Unauthorized. Please login again.");
+        } else if (status === 403) {
+          throw new Error("Access denied. You don't have permission.");
+        } else if (status === 404) {
+          throw new Error("No documents found in this folder.");
+        } else {
+          throw new Error(error.response.data.message || `Server error: ${status}`);
+        }
+      } else if (error.request) {
+        throw new Error("No response from server. Please check your connection.");
+      } else {
+        throw new Error(`Request error: ${error.message}`);
+      }
+    } else {
+      throw new Error("An unexpected error occurred");
+    }
+  }
+};
+
 
 export const getDocuments = async (page = 1, limit = 10) => {
   try {
@@ -55,51 +112,34 @@ export const getDocuments = async (page = 1, limit = 10) => {
   }
 };
 
-export const uploadDocument = async (file) => {
+
+
+export const uploadDocument = async (file, folderId = null) => {
   try {
     const token = getToken();
-    
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
+    if (!token) throw new Error("No authentication token found");
 
     const formData = new FormData();
     formData.append("file", file);
-
-    console.log("Uploading file:", file.name);
-    console.log("File size:", file.size, "bytes");
+    if (folderId) formData.append("folderId", folderId); // ✅ Gửi folderId
 
     const response = await axios({
-      method: 'POST',
-      url: `${API_URL}/upload`,
+      method: "POST",
+      url: "http://localhost:3000/documents/upload",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "multipart/form-data",
       },
       data: formData,
-      timeout: 30000 // 30 seconds for file upload
+      timeout: 30000,
     });
 
-    console.log("Upload response:", response);
     return response.data;
   } catch (error) {
     console.error("Error uploading document:", error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        throw new Error(error.response.data.message || `Upload failed: ${error.response.status}`);
-      } else if (error.request) {
-        throw new Error("No response from server during upload.");
-      } else {
-        throw new Error(`Upload error: ${error.message}`);
-      }
-    } else {
-      throw new Error("An unexpected error occurred during upload");
-    }
+    throw new Error(error.response?.data?.message || "Upload failed");
   }
 };
-
-
 
 
 export const deleteDocument = async (documentId) => {
@@ -272,7 +312,7 @@ export const moveDocumentToFolder = async (documentId, folderId) => {
 
     const response = await axios({
       method: 'POST',
-      url: `http://103.245.237.127/folders/documents/add`,
+      url: `http://localhost:3000/folders/documents/add`,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -317,7 +357,7 @@ export const getDocumentsByFolder = async (folderId, page = 1, limit = 10) => {
     console.log("Fetching documents for folder:", folderId, `page=${page}&limit=${limit}`);
     const response = await axios({
       method: 'GET',
-      url: `http://103.245.237.127/folders/${folderId}/documents?page=${page}&limit=${limit}`,
+      url: `http://localhost:3000/folders/${folderId}/documents?page=${page}&limit=${limit}`,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -352,5 +392,89 @@ export const getDocumentsByFolder = async (folderId, page = 1, limit = 10) => {
     } else {
       throw new Error("An unexpected error occurred");
     }
+  }
+};
+export const renameDocument = async (documentId, newDocumentName) => {
+  try {
+    const token = getToken();
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    console.log("Renaming document:", documentId, "to:", newDocumentName);
+    
+    const response = await axios({
+      method: 'PATCH',
+      url: `http://localhost:3000/documents/${documentId}/update-name`,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      data: {
+        newDocumentName: newDocumentName
+      },
+      timeout: 10000
+    });
+
+    console.log("Rename document response:", response);
+    return response.data;
+  } catch (error) {
+    console.error("Error renaming document:", error);
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        throw new Error(error.response.data.message || `Rename failed: ${error.response.status}`);
+      } else if (error.request) {
+        throw new Error("No response from server during rename operation.");
+      } else {
+        throw new Error(`Rename error: ${error.message}`);
+      }
+    } else {
+      throw new Error("An unexpected error occurred during rename operation");
+    }
+  }
+};
+
+
+
+export const toggleFavorite = async (documentId) => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error("No token found");
+
+    const response = await axios({
+      method: "POST",
+      url: `http://localhost:3000/documents/${documentId}/toggle-favorite`,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    return response.data;
+  } catch (err) {
+    console.error("Toggle favorite error:", err);
+    throw new Error(err.response?.data?.message || "Failed to toggle favorite");
+  }
+};
+
+
+// Lấy danh sách favorite
+export const getFavorites = async () => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error("No token found");
+
+    const response = await axios({
+      method: "GET",
+      url: `http://localhost:3000/documents/favorites`,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return response.data.favorites;
+  } catch (err) {
+    console.error("Get favorites error:", err);
+    throw new Error(err.response?.data?.message || "Failed to fetch favorites");
   }
 };

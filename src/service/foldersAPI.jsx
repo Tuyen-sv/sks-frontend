@@ -1,7 +1,7 @@
 import axios from "axios";
 import { getToken } from "../utils/auth";
 
-const API_URL = "http://103.245.237.127/folders";
+const API_URL = "http://localhost:3000/folders";
 
 export const getAllFolders = async () => {
   try {
@@ -140,6 +140,93 @@ export const deleteFolder = async (folderId) => {
       }
     } else {
       throw new Error("An unexpected error occurred during folder deletion");
+    }
+  }
+};
+
+export const moveFolder = async (folderId, newParentId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    console.log("Moving folder:", folderId, "to new parent:", newParentId);
+
+    const response = await axios({
+      method: 'PUT',
+      url: `${API_URL}/move`,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      data: {
+        folderId: folderId,
+        newParentId: newParentId
+      },
+      timeout: 10000
+    });
+
+    console.log("Move folder response:", response);
+    return response.data;
+  } catch (error) {
+    console.error("Error moving folder:", error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        throw new Error(error.response.data.message || `Move folder failed: ${error.response.status}`);
+      } else if (error.request) {
+        throw new Error("No response from server during folder move.");
+      } else {
+        throw new Error(`Move folder error: ${error.message}`);
+      }
+    } else {
+      throw new Error("An unexpected error occurred during folder move");
+    }
+  }
+};
+
+
+export const renameFolder = async (folderId, newName) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    console.log("Renaming folder:", folderId, "to:", newName);
+
+    const response = await axios({
+      method: 'PUT',
+      url: `${API_URL}/update`,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      data: {
+        folderId: folderId,
+        name: newName
+      },
+      timeout: 10000
+    });
+
+    console.log("Rename folder response:", response);
+    return response.data;
+  } catch (error) {
+    console.error("Error renaming folder:", error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        throw new Error(error.response.data.message || `Rename folder failed: ${error.response.status}`);
+      } else if (error.request) {
+        throw new Error("No response from server during folder rename.");
+      } else {
+        throw new Error(`Rename folder error: ${error.message}`);
+      }
+    } else {
+      throw new Error("An unexpected error occurred during folder rename");
     }
   }
 };

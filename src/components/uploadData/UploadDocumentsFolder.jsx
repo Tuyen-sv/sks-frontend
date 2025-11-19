@@ -13,14 +13,14 @@ import { uploadDocument } from "../../service/documentsAPI";
 import { createFolder, getAllFolders } from "../../service/foldersAPI";
 import { isAuthenticated } from "../../utils/auth";
 
-
-
 const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
   // Upload file states
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedUploadFolder, setSelectedUploadFolder] = useState("");
+  const [allFolders, setAllFolders] = useState([]);
 
   // Create folder states
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
@@ -28,11 +28,10 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
   const [folderName, setFolderName] = useState("");
   const [folderError, setFolderError] = useState("");
   const [selectedParentFolder, setSelectedParentFolder] = useState("");
-  const [allFolders, setAllFolders] = useState([]);
 
   const fileInputRef = useRef(null);
 
-  // Fetch all folders for dropdown
+  // Fetch all folders
   const fetchAllFolders = async () => {
     try {
       const response = await getAllFolders();
@@ -40,21 +39,22 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
         setAllFolders(response.folders);
       }
     } catch (err) {
-      console.error("Error fetching folders for dropdown:", err);
+      console.error("Error fetching folders:", err);
     }
   };
 
   useEffect(() => {
-    if (showCreateFolderModal) {
+    if (showCreateFolderModal || showUploadModal) {
       fetchAllFolders();
     }
-  }, [showCreateFolderModal]);
+  }, [showCreateFolderModal, showUploadModal]);
 
-  // Upload file functions
+  // Upload logic
   const handleUploadClick = () => {
     setShowUploadModal(true);
     setUploadError("");
     setSelectedFile(null);
+    setSelectedUploadFolder("");
   };
 
   const handleFileSelect = (event) => {
@@ -80,17 +80,16 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
       setUploading(true);
       setUploadError("");
 
-      const result = await uploadDocument(selectedFile);
-      console.log("Upload successful:", result);
+      const folderIdToUpload = selectedUploadFolder || null;
+      const result = await uploadDocument(selectedFile, folderIdToUpload);
 
+      console.log("Upload successful:", result);
       setShowUploadModal(false);
       setSelectedFile(null);
+      setSelectedUploadFolder("");
 
       alert(result.message || "File uploaded successfully!");
-
-      // ✅ Reload trang sau khi upload thành công
       window.location.reload();
-
     } catch (err) {
       console.error("Upload error:", err);
       setUploadError(err.message || "Failed to upload file");
@@ -99,7 +98,7 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
     }
   };
 
-  // Create folder functions
+  // Create folder logic
   const handleCreateFolderClick = () => {
     setShowCreateFolderModal(true);
     setFolderError("");
@@ -118,10 +117,9 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
       setFolderError("");
 
       const parentId = selectedParentFolder || null;
-
       const result = await createFolder(folderName.trim(), parentId);
-      console.log("Folder created successfully:", result);
 
+      console.log("Folder created successfully:", result);
       setShowCreateFolderModal(false);
       setFolderName("");
       setSelectedParentFolder("");
@@ -134,10 +132,7 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
       }
 
       alert(successMessage);
-
-      // ✅ Reload trang sau khi tạo folder thành công
       window.location.reload();
-
     } catch (err) {
       console.error("Create folder error:", err);
       setFolderError(err.message || "Failed to create folder");
@@ -167,34 +162,30 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
-  if (!isAuthenticated()) {
-    return null;
-  }
+  if (!isAuthenticated()) return null;
 
   return (
     <>
       <Container className="mt-4">
         <Row className="justify-content-center">
           <Col lg={12}>
-<div className="action-buttons">
-  <div className="action-card" onClick={handleCreateFolderClick}>
-    <div className="icon-text">
-      <i className="bi bi-folder"></i>
-      <span>New Folder</span>
-    </div>
-    <i className="bi bi-plus-lg plus-icon"></i>
-  </div>
+            <div className="action-buttons">
+              <div className="action-card" onClick={handleCreateFolderClick}>
+                <div className="icon-text">
+                  <i className="bi bi-folder"></i>
+                  <span> New Folder</span>
+                </div>
+                <i className="bi bi-plus-lg plus-icon"></i>
+              </div>
 
-  <div className="action-card" onClick={handleUploadClick}>
-    <div className="icon-text">
-      <i className="bi bi-file-earmark"></i>
-      <span>New Document</span>
-    </div>
-    <i className="bi bi-plus-lg plus-icon"></i>
-  </div>
-</div>
-
-
+              <div className="action-card" onClick={handleUploadClick}>
+                <div className="icon-text">
+                  <i className="bi bi-file-earmark"></i>
+                  <span> New Document</span>
+                </div>
+                <i className="bi bi-plus-lg plus-icon"></i>
+              </div>
+            </div>
           </Col>
         </Row>
       </Container>
@@ -207,8 +198,7 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
       >
         <Modal.Header closeButton>
           <Modal.Title>
-            <i className="bi bi-upload me-2"></i>
-            Upload New Document
+            <i className="bi bi-upload me-2"></i> Upload New Document
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -220,6 +210,7 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
           )}
 
           <Form>
+            {/* Select File */}
             <Form.Group className="mb-3">
               <Form.Label className="fw-semibold">Select File</Form.Label>
               <Form.Control
@@ -230,8 +221,23 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
                 disabled={uploading}
               />
               <Form.Text className="text-muted">
-                Supported formats: PDF, DOC, DOCX, TXT, Images, Excel, PowerPoint (Max 50MB)
+                Supported formats: PDF, DOC, DOCX, TXT, PowerPoint (Max 50MB)
               </Form.Text>
+            </Form.Group>
+
+            {/* Select Folder */}
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold">
+                Select Folder <small className="text-muted">(Optional)</small>
+              </Form.Label>
+              <Form.Select
+                value={selectedUploadFolder}
+                onChange={(e) => setSelectedUploadFolder(e.target.value)}
+                disabled={uploading}
+              >
+                <option value="">📂 Root (Top Level)</option>
+                {allFolders.length > 0 && renderFolderOptions(allFolders)}
+              </Form.Select>
             </Form.Group>
 
             {selectedFile && (
@@ -286,8 +292,7 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
       >
         <Modal.Header closeButton>
           <Modal.Title>
-            <i className="bi bi-folder-plus me-2"></i>
-            Create New Folder
+            <i className="bi bi-folder-plus me-2"></i> Create New Folder
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -308,9 +313,7 @@ const UploadDocumentsFolder = ({ currentFolder = null, onFolderCreated }) => {
                 onChange={(e) => setFolderName(e.target.value)}
                 disabled={creatingFolder}
                 onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    handleCreateFolder();
-                  }
+                  if (e.key === "Enter") handleCreateFolder();
                 }}
               />
             </Form.Group>
