@@ -36,7 +36,7 @@ A modern React-based frontend application for the SKS (Student Knowledge System)
 
 2. Install dependencies:
    ```bash
-   npm install
+   npm install ---force or npm install --legacy-peer-deps
    npm install jwt-decode ---force
    npm install react-icons ---force
    npm install mammoth react-doc-viewer react-file-viewer --force 
